@@ -7,7 +7,7 @@ const AllocatorError = Allocator.Error;
 pub fn Node(T: type) type {
     return struct {
         value: T,
-        count: u32 = 0,
+        count: u32 = 1,
         left: ?*Self = null,
         right: ?*Self = null,
 
@@ -19,12 +19,12 @@ pub fn Node(T: type) type {
             };
             return node;
         }
-        fn free(self: *Self, allocator: Allocator) void {
+        fn free_recursively(self: *Self, allocator: Allocator) void {
             if (self.left) |left| {
-                left.free(allocator);
+                left.free_recursively(allocator);
             }
             if (self.right) |right| {
-                right.free(allocator);
+                right.free_recursively(allocator);
             }
             allocator.destroy(self);
         }
@@ -79,7 +79,7 @@ pub fn BinaryTree(T: type) type {
 
         fn free_nodes(self: *Self) void {
             if (self.root) |root| {
-                root.free(self.allocator);
+                root.free_recursively(self.allocator);
             }
         }
 
@@ -109,4 +109,43 @@ test "binary_tree" {
     // try tree.add(403);
     // try tree.add(404);
     tree.print_tree();
+    print("GET {any}\n", .{tree.get(5)});
+}
+test "b_tree_add_new_node_value" {
+    const testing = std.testing;
+    const test_alloc = std.testing.allocator;
+    var tree = BinaryTree(i32){ .allocator = test_alloc };
+    defer tree.free_nodes();
+    try tree.add(19);
+    try tree.add(190);
+    try tree.add(1);
+    try testing.expectEqual(19, tree.root.?.value);
+    try testing.expectEqual(190, tree.root.?.right.?.value);
+    try testing.expectEqual(1, tree.root.?.left.?.value);
+}
+test "b_tree_add_same_value" {
+    const testing = std.testing;
+    const test_alloc = std.testing.allocator;
+    var tree = BinaryTree(i32){ .allocator = test_alloc };
+    defer tree.free_nodes();
+    try tree.add(19);
+    try tree.add(19);
+    try tree.add(190);
+
+    try testing.expectEqual(2, tree.root.?.count);
+    try testing.expectEqual(1, tree.root.?.right.?.count);
+}
+test "b_tree_get" {
+    const testing = std.testing;
+    const test_alloc = std.testing.allocator;
+    var tree = BinaryTree(i32){ .allocator = test_alloc };
+    defer tree.free_nodes();
+    try tree.add(19);
+    try tree.add(190);
+    try tree.add(1);
+
+    try testing.expect(tree.get(19) != null);
+    try testing.expect(tree.get(190) != null);
+    try testing.expect(tree.get(1) != null);
+    try testing.expect(tree.get(10) == null);
 }
