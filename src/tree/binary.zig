@@ -28,23 +28,6 @@ pub fn Node(T: type) type {
             }
             allocator.destroy(self);
         }
-        fn add(self: *Self, allocator: Allocator, value: T) AllocatorError!bool {
-            if (value < self.value) {
-                if (self.left) |left| {
-                    return try left.add(allocator, value);
-                }
-                self.left = try Self.create(allocator, value);
-                return true;
-            } else if (value > self.value) {
-                if (self.right) |right| {
-                    return try right.add(allocator, value);
-                }
-                self.right = try Self.create(allocator, value);
-                return true;
-            }
-            self.count += 1;
-            return false;
-        }
         fn print_nodes(self: *Self, level: u32) void {
             if (self.left) |left| {
                 left.print_nodes(level + 1);
@@ -65,9 +48,26 @@ pub fn BinaryTree(T: type) type {
         allocator: Allocator,
 
         const Self = @This();
+        fn add_to_node(self: *Self, node: *Node(T), value: T) AllocatorError!bool {
+            if (value < node.value) {
+                if (node.left) |left| {
+                    return try self.add_to_node(left, value);
+                }
+                node.left = try Node(T).create(self.allocator, value);
+                return true;
+            } else if (value > node.value) {
+                if (node.right) |right| {
+                    return try self.add_to_node(right, value);
+                }
+                node.right = try Node(T).create(self.allocator, value);
+                return true;
+            }
+            node.count += 1;
+            return false;
+        }
         fn add(self: *Self, value: T) AllocatorError!void {
             if (self.root) |root| {
-                const created_unique = try root.add(self.allocator, value);
+                const created_unique = try self.add_to_node(root, value);
                 if (created_unique) {
                     self.unique_node_count += 1;
                 }
