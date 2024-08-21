@@ -77,6 +77,26 @@ pub fn BinaryTree(T: type) type {
             }
         }
 
+        fn get_from_node(node: *Node(T), value: T) ?*Node(T) {
+            if (value < node.value) {
+                if (node.left) |left| {
+                    return get_from_node(left, value);
+                }
+            } else if (value > node.value) {
+                if (node.right) |right| {
+                    return get_from_node(right, value);
+                }
+            } else return node;
+            return null;
+        }
+        fn get(self: *Self, value: T) ?*Node(T) {
+            if (self.root) |root| {
+                return get_from_node(root, value);
+            } else return null;
+        }
+
+        // fn remove(self: *Self, value: T) ? {}
+
         fn free_nodes(self: *Self) void {
             if (self.root) |root| {
                 root.free_recursively(self.allocator);
