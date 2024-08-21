@@ -112,9 +112,23 @@ pub fn BinaryTree(T: type) type {
     };
 }
 
-test "binary_tree" {
+fn create_test_tree() BinaryTree(i32) {
+    //            190
+    //           /
+    // root -> 19   9
+    //           \ /
+    //            1
     const test_alloc = std.testing.allocator;
     var tree = BinaryTree(i32){ .allocator = test_alloc };
+    tree.root = Node(i32).create(test_alloc, 19);
+    tree.root.?.right = Node(i32).create(test_alloc, 190);
+    tree.root.?.left = Node(i32).create(test_alloc, 1);
+    tree.root.?.left.?.right = Node(i32).create(test_alloc, 9);
+    return tree;
+}
+
+test "binary_tree" {
+    var tree = create_test_tree();
     defer tree.free_nodes();
     try tree.add(8);
     try tree.add(4);
@@ -136,9 +150,11 @@ test "b_tree_add_new_node_value" {
     const test_alloc = std.testing.allocator;
     var tree = BinaryTree(i32){ .allocator = test_alloc };
     defer tree.free_nodes();
+
     try tree.add(19);
     try tree.add(190);
     try tree.add(1);
+
     try testing.expectEqual(19, tree.root.?.value);
     try testing.expectEqual(190, tree.root.?.right.?.value);
     try testing.expectEqual(1, tree.root.?.left.?.value);
@@ -148,6 +164,7 @@ test "b_tree_add_same_value" {
     const test_alloc = std.testing.allocator;
     var tree = BinaryTree(i32){ .allocator = test_alloc };
     defer tree.free_nodes();
+
     try tree.add(19);
     try tree.add(19);
     try tree.add(190);
@@ -157,12 +174,8 @@ test "b_tree_add_same_value" {
 }
 test "b_tree_get" {
     const testing = std.testing;
-    const test_alloc = std.testing.allocator;
-    var tree = BinaryTree(i32){ .allocator = test_alloc };
+    var tree = create_test_tree();
     defer tree.free_nodes();
-    try tree.add(19);
-    try tree.add(190);
-    try tree.add(1);
 
     try testing.expect(tree.get(19) != null);
     try testing.expect(tree.get(190) != null);
