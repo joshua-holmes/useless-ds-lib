@@ -45,6 +45,16 @@ pub fn Node(T: type) type {
             self.count += 1;
             return false;
         }
+        fn print_nodes(self: *Self, level: u32) void {
+            if (self.left) |left| {
+                left.print_nodes(level + 1);
+            } else print("\n", .{});
+            for (0..(level * 8)) |_| print(" ", .{});
+            print("{d}\n", .{self.value});
+            if (self.right) |right| {
+                right.print_nodes(level + 1);
+            } else print("\n", .{});
+        }
     };
 }
 
@@ -73,47 +83,11 @@ pub fn BinaryTree(T: type) type {
             }
         }
 
-        fn print_tree(self: *Self) AllocatorError!void {
+        fn print_tree(self: *Self) void {
             if (self.root == null) {
                 print("BinaryTree is empty, nothing to print\n", .{});
             }
-            const DLLTuple = struct { *Node(T), u32, u32 };
-            const DLL = std.DoublyLinkedList(DLLTuple);
-            var queue = DLL{};
-            const root_q_node = try self.allocator.create(DLL.Node);
-            root_q_node.* = .{ .data = .{ self.root.?, 1, self.unique_node_count } };
-            queue.append(root_q_node);
-            var last_level: u32 = 0;
-            print("BinaryTree - {d} total nodes:", .{self.unique_node_count});
-            while (queue.popFirst()) |q_node| {
-                const tree_node = q_node.data.@"0";
-                const level = q_node.data.@"1";
-                const row = q_node.data.@"2";
-                if (level > last_level) {
-                    print("\n", .{});
-                    last_level = level;
-                }
-                var digits: u8 = 0;
-                var num = tree_node.value;
-                while (num != 0) {
-                    num = @divTrunc(num, 10);
-                    digits += 1;
-                }
-                for (0..(row - (digits / 2))) |_| print(" ", .{});
-                print("{d}", .{tree_node.value});
-                if (tree_node.left) |left| {
-                    const new_q_node = try self.allocator.create(DLL.Node);
-                    new_q_node.* = .{ .data = .{ left, level + 1, row / 2 } };
-                    queue.append(new_q_node);
-                }
-                if (tree_node.right) |right| {
-                    const new_q_node = try self.allocator.create(DLL.Node);
-                    new_q_node.* = .{ .data = .{ right, level + 1, row } };
-                    queue.append(new_q_node);
-                }
-                self.allocator.destroy(q_node);
-            }
-            print("\n", .{});
+            self.root.?.print_nodes(0);
         }
     };
 }
@@ -125,7 +99,7 @@ test "binary_tree" {
     try tree.add(8);
     try tree.add(4);
     try tree.add(40);
-    try tree.add(3);
+    // try tree.add(3);
     try tree.add(5);
     try tree.add(39);
     try tree.add(41);
@@ -134,5 +108,5 @@ test "binary_tree" {
     // try tree.add(402);
     // try tree.add(403);
     // try tree.add(404);
-    try tree.print_tree();
+    tree.print_tree();
 }
