@@ -48,3 +48,40 @@ pub fn Node(T: type) type {
     };
 }
 
+pub fn BinaryTree(T: type) type {
+    return struct {
+        root: ?*Node(T) = null,
+        unique_node_count: u32 = 0,
+        allocator: Allocator,
+
+        const Self = @This();
+        fn add(self: *Self, value: T) AllocatorError!void {
+            if (self.root) |root| {
+                const created_unique = try root.add(self.allocator, value);
+                if (created_unique) {
+                    self.unique_node_count += 1;
+                }
+            } else {
+                self.root = try Node(T).create(self.allocator, value);
+                self.unique_node_count += 1;
+            }
+        }
+
+        fn free_nodes(self: *Self) void {
+            if (self.root) |root| {
+                root.free(self.allocator);
+            }
+        }
+    };
+}
+
+test "binary_tree" {
+    const test_alloc = std.testing.allocator;
+    var tree = BinaryTree(i32){ .allocator = test_alloc };
+    defer tree.free_nodes();
+    try tree.add(8);
+    try tree.add(4);
+    try tree.add(40);
+    try tree.add(400);
+    print("{any}", .{tree});
+}
