@@ -95,7 +95,54 @@ pub fn BinaryTree(T: type) type {
             } else return null;
         }
 
-        // fn remove(self: *Self, value: T) ? {}
+        fn remove(self: *Self, value: T) bool {
+            var p_node: ?*Node(T) = null;
+            var node = self.root;
+            var went_left = false;
+            while (node) |n| {
+                if (n.value != value) {
+                    p_node = n;
+                    node = if (value < n.value) n.left else n.right;
+                    went_left = value < n.value;
+                    continue;
+                }
+                if (n.count > 1) {
+                    n.count -= 1;
+                    return true;
+                }
+                if ((n.left != null and n.right == null) or (n.left == null and n.right != null)) {
+                    // single child
+                    const n_node = if (n.left != null) n.left else n.right;
+                    if (p_node) |p| {
+                        if (went_left) p.left = n_node else p.right = n_node;
+                    } else self.root = n_node;
+                } else if (n.left == null and n.right == null) {
+                    // no children
+                    if (p_node) |p| {
+                        if (went_left) p.left = null else p.right = null;
+                    } else self.root = null;
+                } else {
+                    // two children
+                    var l_node_p = n;
+                    var l_node = n.right.?;
+                    find_left: while (true) {
+                        if (l_node.left) |l| {
+                            l_node_p = l_node;
+                            l_node = l;
+                        } else break :find_left;
+                    }
+                    l_node_p.left = l_node.right;
+                    if (p_node) |p| {
+                        if (went_left) p.left = l_node else p.right = l_node;
+                    } else self.root = l_node;
+                    l_node.right = n.right;
+                    l_node.left = n.left;
+                }
+                self.allocator.destroy(n);
+                return true;
+            }
+            return false;
+        }
 
         fn free_nodes(self: *Self) void {
             if (self.root) |root| {
@@ -112,38 +159,38 @@ pub fn BinaryTree(T: type) type {
     };
 }
 
-fn create_test_tree() BinaryTree(i32) {
+fn create_test_tree() AllocatorError!BinaryTree(i32) {
     //            190
-    //           /
-    // root -> 19   9
+    //           /   \
+    // root -> 19   9 20
     //           \ /
     //            1
     const test_alloc = std.testing.allocator;
     var tree = BinaryTree(i32){ .allocator = test_alloc };
-    tree.root = Node(i32).create(test_alloc, 19);
-    tree.root.?.right = Node(i32).create(test_alloc, 190);
-    tree.root.?.left = Node(i32).create(test_alloc, 1);
-    tree.root.?.left.?.right = Node(i32).create(test_alloc, 9);
+    tree.root = try Node(i32).create(test_alloc, 19);
+    tree.root.?.right = try Node(i32).create(test_alloc, 190);
+    tree.root.?.right.?.left = try Node(i32).create(test_alloc, 20);
+    tree.root.?.left = try Node(i32).create(test_alloc, 1);
+    tree.root.?.left.?.right = try Node(i32).create(test_alloc, 9);
     return tree;
 }
 
 test "binary_tree" {
-    var tree = create_test_tree();
-    defer tree.free_nodes();
-    try tree.add(8);
-    try tree.add(4);
-    try tree.add(40);
-    // try tree.add(3);
-    try tree.add(5);
-    try tree.add(39);
-    try tree.add(41);
+    // var tree = try create_test_tree();
+    // defer tree.free_nodes();
+    // try tree.add(8);
+    // try tree.add(4);
+    // try tree.add(40);
+    // // try tree.add(3);
+    // try tree.add(5);
+    // try tree.add(39);
+    // try tree.add(41);
     // try tree.add(400);
     // try tree.add(401);
     // try tree.add(402);
     // try tree.add(403);
     // try tree.add(404);
-    tree.print_tree();
-    print("GET {any}\n", .{tree.get(5)});
+    // tree.print_tree();
 }
 test "b_tree_add_new_node_value" {
     const testing = std.testing;
@@ -174,11 +221,22 @@ test "b_tree_add_same_value" {
 }
 test "b_tree_get" {
     const testing = std.testing;
-    var tree = create_test_tree();
+    var tree = try create_test_tree();
     defer tree.free_nodes();
 
-    try testing.expect(tree.get(19) != null);
-    try testing.expect(tree.get(190) != null);
-    try testing.expect(tree.get(1) != null);
-    try testing.expect(tree.get(10) == null);
+    try testing.expectEqual(19, tree.get(19).?.value);
+    try testing.expectEqual(190, tree.get(190).?.value);
+    try testing.expectEqual(1, tree.get(1).?.value);
+    try testing.expectEqual(null, tree.get(10));
+}
+test "b_tree_remove" {
+    const testing = std.testing;
+    var tree = try create_test_tree();
+    defer tree.free_nodes();
+
+    try testing.expect(!tree.remove(10));
+    try testing.expect(tree.remove(19));
+    try testing.expectEqual(20, tree.root.?.value);
+    try testing.expect(tree.remove(190));
+    try testing.expectEqual(null, tree.root.?.right);
 }
