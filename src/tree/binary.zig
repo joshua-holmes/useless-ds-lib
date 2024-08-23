@@ -175,24 +175,7 @@ fn create_test_tree() AllocatorError!BinaryTree(i32) {
     return tree;
 }
 
-test "binary_tree" {
-    // var tree = try create_test_tree();
-    // defer tree.free_nodes();
-    // try tree.add(8);
-    // try tree.add(4);
-    // try tree.add(40);
-    // // try tree.add(3);
-    // try tree.add(5);
-    // try tree.add(39);
-    // try tree.add(41);
-    // try tree.add(400);
-    // try tree.add(401);
-    // try tree.add(402);
-    // try tree.add(403);
-    // try tree.add(404);
-    // tree.print_tree();
-}
-test "b_tree_add_new_node_value" {
+test "add_node_new_value" {
     const testing = std.testing;
     const test_alloc = std.testing.allocator;
     var tree = BinaryTree(i32){ .allocator = test_alloc };
@@ -206,7 +189,7 @@ test "b_tree_add_new_node_value" {
     try testing.expectEqual(190, tree.root.?.right.?.value);
     try testing.expectEqual(1, tree.root.?.left.?.value);
 }
-test "b_tree_add_same_value" {
+test "add_node_same_value" {
     const testing = std.testing;
     const test_alloc = std.testing.allocator;
     var tree = BinaryTree(i32){ .allocator = test_alloc };
@@ -219,7 +202,7 @@ test "b_tree_add_same_value" {
     try testing.expectEqual(2, tree.root.?.count);
     try testing.expectEqual(1, tree.root.?.right.?.count);
 }
-test "b_tree_get" {
+test "get_node" {
     const testing = std.testing;
     var tree = try create_test_tree();
     defer tree.free_nodes();
@@ -229,7 +212,7 @@ test "b_tree_get" {
     try testing.expectEqual(1, tree.get(1).?.value);
     try testing.expectEqual(null, tree.get(10));
 }
-test "b_tree_remove" {
+test "remove_node" {
     const testing = std.testing;
     var tree = try create_test_tree();
     defer tree.free_nodes();
