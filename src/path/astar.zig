@@ -1,30 +1,53 @@
 const std = @import("std");
 const print = std.debug.print;
 
-const Cell = enum(u8) {
+pub const Cell = enum(u8) {
     start,
     end,
     wall,
 };
 
-fn print_grid(comptime size: u32, grid: []const [size]?Cell) void {
-    for (grid.len * 2 + 1) |_| print("_", .{});
-    for (grid) |row| {
-        print("\n", .{});
-        for (row) |cell| {
-            var char: u8 = ' ';
-            if (cell) |c| {
-                if (c == .start) char = 'a' else if (c == .end) char = 'b' else char = 'x';
+const Point = struct {
+    x: u32,
+    y: u32,
+};
+
+pub fn Astar(size: comptime_int) type {
+    return struct {
+        grid: [size][size]?Cell,
+        len: comptime_int = size,
+        const Self = @This();
+
+        fn new(start: Point, end: Point, walls: []const Point) Self {
+            var grid = [_][size]?Cell{[_]?Cell{null} ** size} ** size;
+            grid[start.y][start.x] = .start;
+            grid[end.y][end.x] = .end;
+            inline for (walls) |p| {
+                grid[p.y][p.x] = .wall;
             }
-            print("|{c}", .{char});
+            return Self{ .grid = grid };
         }
-        print("|", .{});
-    }
-    print("\n", .{});
-    for (grid.len * 2 + 1) |_| print("-", .{});
-    print("\n", .{});
+
+        fn print_grid(self: Self) void {
+            for (self.len * 2 + 1) |_| print("_", .{});
+            for (self.grid) |row| {
+                print("\n", .{});
+                for (row) |cell| {
+                    var char: u8 = ' ';
+                    if (cell) |c| {
+                        if (c == .start) char = 'a' else if (c == .end) char = 'b' else char = 'x';
+                    }
+                    print("|{c}", .{char});
+                }
+                print("|", .{});
+            }
+            print("\n", .{});
+            for (self.len * 2 + 1) |_| print("-", .{});
+            print("\n", .{});
+        }
+    };
 }
-fn build_grid_possible() [7][7]?Cell {
+fn build_grid_possible() Astar(7) {
     // _____________
     //| | | | | | | |
     //| | |b|*|*|*| |
@@ -38,16 +61,14 @@ fn build_grid_possible() [7][7]?Cell {
     // each square is 1 unit in width and height
     // squares are sqrt(2) units away from each other, diagonally
     // correct shortest path is marked by * but will not be shown in the returned data structure
-    var grid = [_][7]?Cell{[_]?Cell{null} ** 7} ** 7;
-    inline for (.{ 1, 2, 3, 4, 5 }) |x| {
-        grid[2][x] = .wall;
+    var walls = [_]Point{undefined} ** 6;
+    inline for (.{ 1, 2, 3, 4, 5 }, 0..) |x, i| {
+        walls[i] = Point{ .x = x, .y = 2 };
     }
-    grid[3][1] = .wall;
-    grid[4][4] = .start;
-    grid[1][2] = .end;
-    return grid;
+    walls[5] = Point{ .x = 1, .y = 3 };
+    return Astar(7).new(Point{ .x = 4, .y = 4 }, Point{ .x = 2, .y = 1 }, &walls);
 }
-fn build_grid_impossible() [7][7]?Cell {
+fn build_grid_impossible() Astar(7) {
     // _____________
     //| | | | | | | |
     //| | |b| | | | |
@@ -57,18 +78,16 @@ fn build_grid_impossible() [7][7]?Cell {
     //| | | | | | | |
     //| | | | | | | |
     // _____________
-    var grid = [_][7]?Cell{[_]?Cell{null} ** 7} ** 7;
-    inline for (.{ 0, 1, 2, 3, 4, 5, 6 }) |x| {
-        grid[2][x] = .wall;
+    var walls = [_]Point{undefined} ** 8;
+    inline for (.{ 0, 1, 2, 3, 4, 5, 6 }, 0..) |x, i| {
+        walls[i] = Point{ .x = x, .y = 2 };
     }
-    grid[3][1] = .wall;
-    grid[4][4] = .start;
-    grid[1][2] = .end;
-    return grid;
+    walls[7] = Point{ .x = 1, .y = 3 };
+    return Astar(7).new(Point{ .x = 4, .y = 4 }, Point{ .x = 2, .y = 1 }, &walls);
 }
 test "print_grid" {
-    const grid = build_grid_possible();
-    print_grid(grid.len, &grid);
+    const astar = build_grid_possible();
+    astar.print_grid();
 }
 test "a_reaches_b" {}
 test "shortest_path_is_correct_units_long" {}
