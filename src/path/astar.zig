@@ -39,10 +39,10 @@ const Result = struct {
     path: std.ArrayList(Point),
 
     const Self = @This();
-    fn deinit(self: Self) void {
+    fn deinit(self: *const Self) void {
         self.path.deinit();
     }
-    fn calculate_path_length(self: Self) f64 {
+    fn calculate_path_length(self: *const Self) f64 {
         if (self.path.items.len < 2) {
             return 0;
         }
@@ -131,7 +131,7 @@ pub fn Astar(size: comptime_int) type {
         }
 
         /// Print grid, optionally pass in a `Result` if path solution should also be printed.
-        fn print_grid(self: Self, result: ?Result) !void {
+        fn print_grid(self: *const Self, result: ?*const Result) !void {
             var set: ?std.AutoHashMap(Point, void) = null;
             if (result) |r| {
                 set = std.AutoHashMap(Point, void).init(r.allocator);
@@ -164,7 +164,7 @@ pub fn Astar(size: comptime_int) type {
         }
 
         /// solves astar algorithm and returns result
-        fn solve(self: Self, allocator: std.mem.Allocator) !Result {
+        fn solve(self: *const Self, allocator: std.mem.Allocator) !Result {
             // create list of open nodes
             var open = std.PriorityQueue(*Node, void, Node._lessThan).init(allocator, {});
             defer open.deinit();
@@ -280,7 +280,7 @@ test "print_possible_grid_with_result" {
     const result = try astar.solve(testing.allocator);
     defer result.deinit();
     print("\nSolved grid:\n", .{});
-    try astar.print_grid(result);
+    try astar.print_grid(&result);
 }
 test "print_impossible_grid_with_result" {
     const testing = std.testing;
@@ -288,7 +288,7 @@ test "print_impossible_grid_with_result" {
     const result = try astar.solve(testing.allocator);
     defer result.deinit();
     print("\nUnsolvable grid:\n", .{});
-    try astar.print_grid(result);
+    try astar.print_grid(&result);
 }
 test "a_reaches_b" {
     const testing = std.testing;
