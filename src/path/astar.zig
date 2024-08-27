@@ -115,7 +115,15 @@ pub fn Astar(size: comptime_int) type {
             return self.grid[@intCast(position.y)][@intCast(position.x)];
         }
 
-        fn print_grid(self: Self) void {
+        fn print_grid(self: Self, result: ?Result) !void {
+            var set: ?std.AutoHashMap(Point, void) = null;
+            if (result) |r| {
+                set = std.AutoHashMap(Point, void).init(r.allocator);
+                for (r.path.items) |point| {
+                    try set.?.put(point, {});
+                }
+            }
+            defer if (set != null) set.?.deinit();
             for (self.len * 2 + 1) |_| print("_", .{});
             for (self.grid, 0..) |row, y| {
                 print("\n", .{});
@@ -126,6 +134,8 @@ pub fn Astar(size: comptime_int) type {
                         char = 'a';
                     } else if (self.end.equal(point)) {
                         char = 'b';
+                    } else if (set) |s| {
+                        if (s.contains(point)) char = '*';
                     }
                     print("|{c}", .{char});
                 }
@@ -243,7 +253,21 @@ fn build_grid_impossible() Astar(7) {
 }
 test "print_grid" {
     const astar = build_grid_possible();
-    astar.print_grid();
+    try astar.print_grid(null);
+}
+test "print_possible_grid_with_result" {
+    const testing = std.testing;
+    const astar = build_grid_possible();
+    const result = try astar.solve(testing.allocator);
+    defer result.deinit();
+    try astar.print_grid(result);
+}
+test "print_impossible_grid_with_result" {
+    const testing = std.testing;
+    const astar = build_grid_impossible();
+    const result = try astar.solve(testing.allocator);
+    defer result.deinit();
+    try astar.print_grid(result);
 }
 test "a_reaches_b" {
     const testing = std.testing;
