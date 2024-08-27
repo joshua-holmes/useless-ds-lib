@@ -46,7 +46,7 @@ const Result = struct {
     fn deinit(self: Self) void {
         self.path.deinit();
     }
-    fn path_length(self: Self) f64 {
+    fn calculate_path_length(self: Self) f64 {
         if (self.path.items.len < 2) {
             return 0;
         }
@@ -253,6 +253,7 @@ fn build_grid_impossible() Astar(7) {
 }
 test "print_grid" {
     const astar = build_grid_possible();
+    print("\nUnsolved grid:\n", .{});
     try astar.print_grid(null);
 }
 test "print_possible_grid_with_result" {
@@ -260,6 +261,7 @@ test "print_possible_grid_with_result" {
     const astar = build_grid_possible();
     const result = try astar.solve(testing.allocator);
     defer result.deinit();
+    print("\nSolved grid:\n", .{});
     try astar.print_grid(result);
 }
 test "print_impossible_grid_with_result" {
@@ -267,6 +269,7 @@ test "print_impossible_grid_with_result" {
     const astar = build_grid_impossible();
     const result = try astar.solve(testing.allocator);
     defer result.deinit();
+    print("\nUnsolvable grid:\n", .{});
     try astar.print_grid(result);
 }
 test "a_reaches_b" {
@@ -281,7 +284,7 @@ test "shortest_path_is_correct_units_long" {
     const astar = build_grid_possible();
     const result = try astar.solve(testing.allocator);
     defer result.deinit();
-    try testing.expectApproxEqAbs(7.2426, result.path_length(), 0.0001);
+    try testing.expectApproxEqAbs(7.2426, result.calculate_path_length(), 0.0001);
 }
 test "shortest_path_is_correct_path" {
     const testing = std.testing;
