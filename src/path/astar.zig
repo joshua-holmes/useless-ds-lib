@@ -39,7 +39,7 @@ const Result = struct {
     /// `true` if end is found
     found_end: bool,
 
-    /// path from start to end, inclusive of both
+    /// path from end to start (notice it is in reverse), inclusive of both
     path: std.ArrayList(Point),
 
     const Self = @This();
@@ -47,11 +47,12 @@ const Result = struct {
         self.path.deinit();
     }
     fn path_length(self: Self) f64 {
-        if (self.path.len < 2) {
+        if (self.path.items.len < 2) {
             return 0;
         }
-        var sum = 0;
-        for (self.path[0 .. self.path.len - 1], self.path[1..]) |prev_point, point| {
+        var sum: f64 = 0;
+        const items = self.path.items;
+        for (items[0 .. items.len - 1], items[1..]) |prev_point, point| {
             sum += prev_point.distance(point);
         }
         return sum;
@@ -191,7 +192,7 @@ pub fn Astar(size: comptime_int) type {
                 }
             } else null;
             var path = std.ArrayList(Point).init(allocator);
-            try path.append(self.end);
+            if (end != null) try path.append(self.end);
             var node = end;
             while (node) |n| {
                 try path.append(n.point);
@@ -251,6 +252,37 @@ test "a_reaches_b" {
     defer result.deinit();
     try testing.expect(result.found_end);
 }
-test "shortest_path_is_correct_units_long" {}
-test "shortest_path_is_correct_path" {}
-test "a_does_not_reach_b_given_impossible_path" {}
+test "shortest_path_is_correct_units_long" {
+    const testing = std.testing;
+    const astar = build_grid_possible();
+    const result = try astar.solve(testing.allocator);
+    defer result.deinit();
+    try testing.expectApproxEqAbs(7.2426, result.path_length(), 0.0001);
+}
+test "shortest_path_is_correct_path" {
+    const testing = std.testing;
+    const astar = build_grid_possible();
+    const result = try astar.solve(testing.allocator);
+    defer result.deinit();
+
+    const expected = [_]Point{
+        Point{ .x = 2, .y = 1 },
+        Point{ .x = 3, .y = 1 },
+        Point{ .x = 4, .y = 1 },
+        Point{ .x = 5, .y = 1 },
+        Point{ .x = 6, .y = 2 },
+        Point{ .x = 5, .y = 3 },
+        Point{ .x = 4, .y = 4 },
+    };
+    for (expected, result.path.items) |exp, res| {
+        try testing.expect(exp.equal(res));
+    }
+}
+test "a_does_not_reach_b_given_impossible_path" {
+    const testing = std.testing;
+    const astar = build_grid_impossible();
+    const result = try astar.solve(testing.allocator);
+    defer result.deinit();
+    try testing.expect(!result.found_end);
+    try testing.expectEqual(0, result.path.items.len);
+}
