@@ -24,12 +24,6 @@ const Point = struct {
     fn equal(self: Self, other_point: Point) bool {
         return self.x == other_point.x and self.y == other_point.y;
     }
-
-    fn distance(self: Self, other_point: Point) f64 {
-        if (self.x == other_point.x) return @floatFromInt(@abs(self.y - other_point.y));
-        if (self.y == other_point.y) return @floatFromInt(@abs(self.x - other_point.x));
-        return self.pathagorean(other_point);
-    }
 };
 
 const Result = struct {
@@ -53,7 +47,7 @@ const Result = struct {
         var sum: f64 = 0;
         const items = self.path.items;
         for (items[0 .. items.len - 1], items[1..]) |prev_point, point| {
-            sum += prev_point.distance(point);
+            sum += prev_point.pathagorean(point);
         }
         return sum;
     }
@@ -181,7 +175,7 @@ pub fn Astar(size: comptime_int) type {
 
                     const nei_cur_distance: f64 = if (direction.x == 0 or direction.y == 0) 1.0 else std.math.sqrt2;
                     const g_score = cur_node.g_score + nei_cur_distance;
-                    const h_score = neighbor_point.distance(self.end);
+                    const h_score = neighbor_point.pathagorean(self.end);
                     const closed_node = closed_hm.get(neighbor_point);
                     if (closed_node) |cn| {
                         if (g_score >= cn.g_score) continue :neighbors;
