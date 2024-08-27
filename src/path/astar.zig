@@ -2,9 +2,8 @@ const std = @import("std");
 const print = std.debug.print;
 
 pub const Cell = enum(u8) {
-    start,
-    end,
     wall,
+    empty,
 };
 
 const Point = struct {
@@ -13,20 +12,50 @@ const Point = struct {
 
     const Self = @This();
     fn pathagorean(self: Self, other_point: Point) f64 {
-        const diff_x: f64 = if (self.x > other_point.x) self.x - other_point.x else other_point.x - self.x;
-        const diff_y: f64 = if (self.y > other_point.y) self.y - other_point.y else other_point.y - self.y;
-        return std.math.sqrt(diff_x ** 2 + diff_y ** 2);
+        const diff_x: f64 = @floatFromInt(if (self.x > other_point.x) self.x - other_point.x else other_point.x - self.x);
+        const diff_y: f64 = @floatFromInt(if (self.y > other_point.y) self.y - other_point.y else other_point.y - self.y);
+        return std.math.sqrt(std.math.pow(f64, diff_x, 2) + std.math.pow(f64, diff_y, 2));
     }
 
     fn add(self: Self, other_point: Point) Self {
         return Self{ .x = self.x + other_point.x, .y = self.y + other_point.y };
     }
+
+    fn equal(self: Self, other_point: Point) bool {
+        return self.x == other_point.x and self.y == other_point.y;
+    }
+
+    fn distance(self: Self, other_point: Point) f64 {
+        if (self.x == other_point.x) return @floatFromInt(@abs(self.y - other_point.y));
+        if (self.y == other_point.y) return @floatFromInt(@abs(self.x - other_point.x));
+        return self.pathagorean(other_point);
+    }
 };
 
 const Result = struct {
+    /// allocator used for `.path`, which is an `ArrayList`
     allocator: std.mem.Allocator,
+
+    /// `true` if end is found
     found_end: bool,
+
+    /// path from start to end, inclusive of both
     path: std.ArrayList(Point),
+
+    const Self = @This();
+    fn deinit(self: Self) void {
+        self.path.deinit();
+    }
+    fn path_length(self: Self) f64 {
+        if (self.path.len < 2) {
+            return 0;
+        }
+        var sum = 0;
+        for (self.path[0 .. self.path.len - 1], self.path[1..]) |prev_point, point| {
+            sum += prev_point.distance(point);
+        }
+        return sum;
+    }
 };
 
 const AstarError = error{
@@ -35,10 +64,11 @@ const AstarError = error{
 
 pub fn Astar(size: comptime_int) type {
     return struct {
-        grid: [size][size]?Cell,
+        grid: [size][size]Cell,
         len: comptime_int = size,
         start: Point,
         end: Point,
+
         const Self = @This();
         const neighbor_directions = [8]Point{
             Point{ .x = -1, .y = -1 },
@@ -53,7 +83,7 @@ pub fn Astar(size: comptime_int) type {
         const Node = struct {
             g_score: f64,
             h_score: f64,
-            pos: Point,
+            point: Point,
             parent: ?*Node,
 
             fn f_score(self: Node) f64 {
@@ -70,30 +100,31 @@ pub fn Astar(size: comptime_int) type {
         };
 
         fn new(start: Point, end: Point, walls: []const Point) Self {
-            var grid = [_][size]?Cell{[_]?Cell{null} ** size} ** size;
-            grid[start.y][start.x] = .start;
-            grid[end.y][end.x] = .end;
+            var grid = [_][size]Cell{[_]Cell{.empty} ** size} ** size;
             inline for (walls) |p| {
                 grid[p.y][p.x] = .wall;
             }
             return Self{ .grid = grid, .start = start, .end = end };
         }
 
-        fn get_safe(self: Self, position: Point) AstarError!?Cell {
+        fn get_cell_safe(self: Self, position: Point) AstarError!Cell {
             if (position.x < 0 or position.x >= self.len or position.y < 0 or position.y >= self.len) {
                 return AstarError.OutOfBounds;
             }
-            return self.grid[position.y][position.x];
+            return self.grid[@intCast(position.y)][@intCast(position.x)];
         }
 
         fn print_grid(self: Self) void {
             for (self.len * 2 + 1) |_| print("_", .{});
-            for (self.grid) |row| {
+            for (self.grid, 0..) |row, y| {
                 print("\n", .{});
-                for (row) |cell| {
-                    var char: u8 = ' ';
-                    if (cell) |c| {
-                        if (c == .start) char = 'a' else if (c == .end) char = 'b' else char = 'x';
+                for (row, 0..) |cell, x| {
+                    const point = Point{ .x = @intCast(x), .y = @intCast(y) };
+                    var char: u8 = if (cell == .wall) 'x' else ' ';
+                    if (self.start.equal(point)) {
+                        char = 'a';
+                    } else if (self.end.equal(point)) {
+                        char = 'b';
                     }
                     print("|{c}", .{char});
                 }
@@ -109,67 +140,61 @@ pub fn Astar(size: comptime_int) type {
             var open = std.PriorityQueue(*Node, void, Node._lessThan).init(allocator, {});
             defer open.deinit();
             const first_open = try allocator.create(Node);
-            first_open.* = Node{ .pos = self.start, .h_score = self.start.pathagorean(self.end), .g_score = 0, .parent = null };
+            first_open.* = Node{ .point = self.start, .h_score = self.start.pathagorean(self.end), .g_score = 0, .parent = null };
             try open.add(first_open);
 
             var closed_hm = std.AutoHashMap(Point, *Node).init(allocator);
             defer {
                 var iter = closed_hm.valueIterator();
                 while (iter.next()) |n| allocator.destroy(n.*);
+                closed_hm.deinit();
             }
-            defer closed_hm.deinit();
             var open_hm = std.AutoHashMap(Point, *Node).init(allocator);
             defer {
                 var iter = open_hm.valueIterator();
                 while (iter.next()) |n| allocator.destroy(n.*);
+                open_hm.deinit();
             }
-            defer open_hm.deinit();
             try open_hm.put(self.start, first_open);
 
             const end: ?*Node = examine_open: while (open.removeOrNull()) |cur_node| {
-                _ = open_hm.remove(cur_node.pos);
+                _ = open_hm.remove(cur_node.point);
+                try closed_hm.put(cur_node.point, cur_node);
                 neighbors: for (neighbor_directions) |direction| {
-                    const neighbor_point = cur_node.pos.add(direction);
-                    const distance_from_cur_node: f64 = if (direction.x == 0 or direction.y == 0) 1.0 else std.math.sqrt2;
-                    const neighbor = self.get_safe(neighbor_point) catch {
+                    const neighbor_point = cur_node.point.add(direction);
+                    const neighbor = self.get_cell_safe(neighbor_point) catch {
                         continue :neighbors;
                     };
-                    if (neighbor != null and neighbor.? == .end) {
-                        break :examine_open cur_node;
+                    if (neighbor == .wall) continue :neighbors;
+                    if (neighbor_point.equal(self.end)) break :examine_open cur_node;
+
+                    const nei_cur_distance: f64 = if (direction.x == 0 or direction.y == 0) 1.0 else std.math.sqrt2;
+                    const g_score = cur_node.g_score + nei_cur_distance;
+                    const h_score = neighbor_point.distance(self.end);
+                    const closed_node = closed_hm.get(neighbor_point);
+                    if (closed_node) |cn| {
+                        if (g_score >= cn.g_score) continue :neighbors;
                     }
-                    if (neighbor != null) {
-                        continue :neighbors;
-                    }
-                    const g_score = cur_node.g_score + distance_from_cur_node;
-                    const f_score = neighbor_point.pathagorean(self.end) + g_score;
-                    const closed_node_from_hm = closed_hm.get(neighbor_point);
-                    if (closed_node_from_hm) |cn| {
-                        if (cn.f_score() > f_score) {
-                            cn.g_score = g_score;
-                            cn.parent = cur_node;
-                        } else {
-                            continue :neighbors;
-                        }
-                    }
-                    const open_node_from_hm = open_hm.get(neighbor_point);
-                    if (open_node_from_hm) |on| {
-                        if (on.f_score() > f_score) {
+                    const open_node = open_hm.get(neighbor_point);
+                    if (open_node) |on| {
+                        if (g_score < on.g_score) {
                             on.g_score = g_score;
                             on.parent = cur_node;
-                        } else {
-                            continue :neighbors;
+                            try open.update(on, on);
                         }
+                        continue :neighbors;
                     }
                     const new_open_node = try allocator.create(Node);
-                    new_open_node.* = Node{ .pos = neighbor_point, .h_score = neighbor_point.pathagorean(self.end), .g_score = g_score, .parent = null };
-                    new_open_node.parent = cur_node;
+                    new_open_node.* = Node{ .point = neighbor_point, .h_score = h_score, .g_score = g_score, .parent = cur_node };
+                    try open_hm.put(neighbor_point, new_open_node);
+                    try open.add(new_open_node);
                 }
-                try closed_hm.put(cur_node.pos, cur_node);
             } else null;
             var path = std.ArrayList(Point).init(allocator);
+            try path.append(self.end);
             var node = end;
             while (node) |n| {
-                try path.append(n.pos);
+                try path.append(n.point);
                 node = n.parent;
             }
             return Result{ .allocator = allocator, .path = path, .found_end = end != null };
@@ -223,6 +248,7 @@ test "a_reaches_b" {
     const testing = std.testing;
     const astar = build_grid_possible();
     const result = try astar.solve(testing.allocator);
+    defer result.deinit();
     try testing.expect(result.found_end);
 }
 test "shortest_path_is_correct_units_long" {}
