@@ -59,8 +59,8 @@ const AstarError = error{
 
 pub fn Astar(size: comptime_int) type {
     return struct {
-        grid: [size][size]Cell,
-        len: comptime_int = size,
+        grid: std.StaticBitSet(size * size),
+        side_len: comptime_int = size,
         start: Point,
         end: Point,
 
@@ -95,18 +95,32 @@ pub fn Astar(size: comptime_int) type {
         };
 
         fn new(start: Point, end: Point, walls: []const Point) Self {
-            var grid = [_][size]Cell{[_]Cell{.empty} ** size} ** size;
-            inline for (walls) |p| {
-                grid[p.y][p.x] = .wall;
+            const grid = std.StaticBitSet(size * size).initEmpty();
+            var astar = Self{ .grid = grid, .start = start, .end = end };
+            for (walls) |p| {
+                astar.set_cell(p, .wall) catch {}; // TODO: decide if bad walls should be handled
             }
-            return Self{ .grid = grid, .start = start, .end = end };
+            return astar;
         }
 
-        fn get_cell_safe(self: Self, position: Point) AstarError!Cell {
-            if (position.x < 0 or position.x >= self.len or position.y < 0 or position.y >= self.len) {
+        fn get_cell(self: *const Self, point: Point) AstarError!Cell {
+            if (point.x < 0 or point.x >= self.side_len or point.y < 0 or point.y >= self.side_len) {
                 return AstarError.OutOfBounds;
             }
-            return self.grid[@intCast(position.y)][@intCast(position.x)];
+            const index = @as(usize, @intCast(point.y)) * @as(usize, size) + @as(usize, @intCast(point.x));
+            return if (self.grid.isSet(index)) .wall else .empty;
+        }
+
+        fn set_cell(self: *Self, point: Point, value: Cell) !void {
+            if (point.x < 0 or point.x >= self.side_len or point.y < 0 or point.y >= self.side_len) {
+                return AstarError.OutOfBounds;
+            }
+            const index = @as(usize, @intCast(point.y)) * @as(usize, size) + @as(usize, @intCast(point.x));
+            const b_value = switch (value) {
+                .wall => true,
+                .empty => false,
+            };
+            self.grid.setValue(index, b_value);
         }
 
         fn print_grid(self: Self, result: ?Result) !void {
@@ -118,11 +132,12 @@ pub fn Astar(size: comptime_int) type {
                 }
             }
             defer if (set != null) set.?.deinit();
-            for (self.len * 2 + 1) |_| print("_", .{});
-            for (self.grid, 0..) |row, y| {
+            for (self.side_len * 2 + 1) |_| print("_", .{});
+            for (0..self.side_len) |y| {
                 print("\n", .{});
-                for (row, 0..) |cell, x| {
+                for (0..self.side_len) |x| {
                     const point = Point{ .x = @intCast(x), .y = @intCast(y) };
+                    const cell = try self.get_cell(point);
                     var char: u8 = if (cell == .wall) 'x' else ' ';
                     if (self.start.equal(point)) {
                         char = 'a';
@@ -136,7 +151,7 @@ pub fn Astar(size: comptime_int) type {
                 print("|", .{});
             }
             print("\n", .{});
-            for (self.len * 2 + 1) |_| print("-", .{});
+            for (self.side_len * 2 + 1) |_| print("-", .{});
             print("\n", .{});
         }
 
@@ -167,7 +182,7 @@ pub fn Astar(size: comptime_int) type {
                 try closed_hm.put(cur_node.point, cur_node);
                 neighbors: for (neighbor_directions) |direction| {
                     const neighbor_point = cur_node.point.add(direction);
-                    const neighbor = self.get_cell_safe(neighbor_point) catch {
+                    const neighbor = self.get_cell(neighbor_point) catch {
                         continue :neighbors;
                     };
                     if (neighbor == .wall) continue :neighbors;
