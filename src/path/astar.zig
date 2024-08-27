@@ -26,6 +26,8 @@ const Point = struct {
     }
 };
 
+/// Result of astar algorithm completion.
+/// Requires deinitialization because `.path` uses a memory allocated list.
 const Result = struct {
     /// allocator used for `.path`, which is an `ArrayList`
     allocator: std.mem.Allocator,
@@ -57,6 +59,9 @@ const AstarError = error{
     OutOfBounds,
 };
 
+/// Data structure that holds grid.
+/// Call `.new(...)` to create a new instance
+/// Call `.solve()` on instance to find shortest path to `.end` using the A* path finding algorithm.
 pub fn Astar(size: comptime_int) type {
     return struct {
         grid: std.StaticBitSet(size * size),
@@ -94,6 +99,8 @@ pub fn Astar(size: comptime_int) type {
             }
         };
 
+        /// Create new instance of `Astar`. `walls` param represents blockages that solution is not allowed to use in path.
+        /// Walls passed in that are out of bounds are ignored.
         fn new(start: Point, end: Point, walls: []const Point) Self {
             const grid = std.StaticBitSet(size * size).initEmpty();
             var astar = Self{ .grid = grid, .start = start, .end = end };
@@ -123,6 +130,7 @@ pub fn Astar(size: comptime_int) type {
             self.grid.setValue(index, b_value);
         }
 
+        /// Print grid, optionally pass in a `Result` if path solution should also be printed.
         fn print_grid(self: Self, result: ?Result) !void {
             var set: ?std.AutoHashMap(Point, void) = null;
             if (result) |r| {
@@ -155,6 +163,7 @@ pub fn Astar(size: comptime_int) type {
             print("\n", .{});
         }
 
+        /// solves astar algorithm and returns result
         fn solve(self: Self, allocator: std.mem.Allocator) !Result {
             // create list of open nodes
             var open = std.PriorityQueue(*Node, void, Node._lessThan).init(allocator, {});
