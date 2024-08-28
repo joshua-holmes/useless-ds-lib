@@ -105,6 +105,7 @@ pub fn Astar(size: comptime_int) type {
             const grid = std.StaticBitSet(size * size).initEmpty();
             var astar = Self{ .grid = grid, .start = start, .end = end };
             for (walls) |p| {
+                if (p.equal(start) or p.equal(end)) continue;
                 astar.set_cell(p, .wall) catch {}; // TODO: decide if bad walls should be handled
             }
             return astar;
