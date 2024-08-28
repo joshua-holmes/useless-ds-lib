@@ -370,5 +370,6 @@ test "huge_grid" {
     const result = try astar.solve(testing.allocator);
     defer result.deinit();
     try testing.expect(result.found_end);
+    print("\nHuge grid:\n", .{});
     try astar.print_grid(&result);
 }
