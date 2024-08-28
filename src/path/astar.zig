@@ -65,7 +65,7 @@ const AstarError = error{
 pub fn Astar(size: comptime_int) type {
     return struct {
         grid: std.StaticBitSet(size * size),
-        side_len: comptime_int = size,
+        side_len: u32 = size,
         start: Point,
         end: Point,
 
