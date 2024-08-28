@@ -234,15 +234,15 @@ pub fn Astar(size: comptime_int) type {
 }
 
 fn build_grid_possible() Astar(7) {
-    // _____________
-    //| | | | | | | |
-    //| | |b|*|*|*| |
-    //| |x|x|x|x|x|*|
-    //| |x| | | |*| |
-    //| | | | |a| | |
-    //| | | | | | | |
-    //| | | | | | | |
-    // _____________
+    //  _____________
+    // | | | | | | | |
+    // | | |b|*|*|*| |
+    // | |x|x|x|x|x|*|
+    // | |x| | | |*| |
+    // | | | | |a| | |
+    // | | | | | | | |
+    // | | | | | | | |
+    // ---------------
     //
     // each square is 1 unit in width and height
     // squares are sqrt(2) units away from each other, diagonally
@@ -255,21 +255,52 @@ fn build_grid_possible() Astar(7) {
     return Astar(7).new(Point{ .x = 4, .y = 4 }, Point{ .x = 2, .y = 1 }, &walls);
 }
 fn build_grid_impossible() Astar(7) {
-    // _____________
-    //| | | | | | | |
-    //| | |b| | | | |
-    //|x|x|x|x|x|x|x|
-    //| |x| | | | | |
-    //| | | | |a| | |
-    //| | | | | | | |
-    //| | | | | | | |
-    // _____________
+    //  _____________
+    // | | | | | | | |
+    // | | |b| | | | |
+    // |x|x|x|x|x|x|x|
+    // | |x| | | | | |
+    // | | | | |a| | |
+    // | | | | | | | |
+    // | | | | | | | |
+    // ---------------
     var walls = [_]Point{undefined} ** 8;
     inline for (.{ 0, 1, 2, 3, 4, 5, 6 }, 0..) |x, i| {
         walls[i] = Point{ .x = x, .y = 2 };
     }
     walls[7] = Point{ .x = 1, .y = 3 };
     return Astar(7).new(Point{ .x = 4, .y = 4 }, Point{ .x = 2, .y = 1 }, &walls);
+}
+fn build_huge_grid_possible() Astar(20) {
+    // _________________________________________
+    // | |x|x| | | |x| |x|x|x| |x| |x|x|*|b| | |
+    // | | | | | |x|x| |x| |x| | |x| |*|x|x|x|x|
+    // |x|x| | |x| | |x|x|x|x|x| |x|*|x| |x| |x|
+    // |x|x|x|x|x| | | | | | |x|*|*| |x|x| | | |
+    // | | |x|x| | | |x|*|*|*|*|x| | |x|x|x| |x|
+    // | | |x| | | |x|*| | | | |x| | |x|x| | | |
+    // |x|x|x|x|x|*|*|x| | | | |x| | | | |x| |x|
+    // | |x|*|*|*|x| | | |x|x|x|x|x| |x| | | | |
+    // | |*|x|x|x|x|x| | | | |x| | | | | | | |x|
+    // |x| |*| | | |x|x|x|x| | |x| |x| |x|x| | |
+    // | | |*| |x| |x| |x| | | | | | |x|x| |x|x|
+    // | |x|*| |x| | |x|x|x| |x|x| | | | |x| |x|
+    // |x|x|*| | |x|x| |x|x| | |x|x| |x| | | | |
+    // | |*|x| |x|x|x| | |x|x| | | |x|x| |x| | |
+    // | |*|x|x|x| |x|x| | |x|x|x|x|x| | | |x|x|
+    // |x|x|*| |x|x| | | | |x| | | |x| | | | | |
+    // |x| |*| |x| |x| | | |x| | | | | |x| | |x|
+    // | |x|*|x| | |x| |x|x| | | | |x| | | | |x|
+    // | | |a| |x|x| | | | | | |x|x| | |x| | | |
+    // | | | |x| | | | | |x| | | |x| | | | | | |
+    // -----------------------------------------
+    var prng = std.Random.DefaultPrng.init(8019);
+    const rand = prng.random();
+    var walls = [_]Point{undefined} ** 200;
+    for (0..200) |i| {
+        walls[i] = Point{ .x = rand.intRangeLessThan(i32, 0, 20), .y = rand.intRangeLessThan(i32, 0, 20) };
+    }
+    return Astar(20).new(Point{ .x = 2, .y = 18 }, Point{ .x = 17, .y = 0 }, &walls);
 }
 test "print_grid" {
     const astar = build_grid_possible();
@@ -332,4 +363,12 @@ test "a_does_not_reach_b_given_impossible_path" {
     defer result.deinit();
     try testing.expect(!result.found_end);
     try testing.expectEqual(0, result.path.items.len);
+}
+test "huge_grid" {
+    const testing = std.testing;
+    const astar = build_huge_grid_possible();
+    const result = try astar.solve(testing.allocator);
+    defer result.deinit();
+    try testing.expect(result.found_end);
+    try astar.print_grid(&result);
 }
