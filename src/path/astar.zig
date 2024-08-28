@@ -131,6 +131,91 @@ pub fn Astar(size: comptime_int) type {
             self.grid.setValue(index, b_value);
         }
 
+        /// solves astar algorithm and returns result
+        fn solve(self: *const Self, allocator: std.mem.Allocator) !Result {
+
+            // create queue of open nodes
+            var open = std.PriorityQueue(*Node, void, Node._lessThan).init(allocator, {});
+            defer open.deinit();
+
+            // create map of open nodes, for quick lookup by point coordinate
+            var open_hm = std.AutoHashMap(Point, *Node).init(allocator);
+            defer {
+                var iter = open_hm.valueIterator();
+                while (iter.next()) |n| allocator.destroy(n.*);
+                open_hm.deinit();
+            }
+
+            // create map of closed nodes
+            var closed_hm = std.AutoHashMap(Point, *Node).init(allocator);
+            defer {
+                var iter = closed_hm.valueIterator();
+                while (iter.next()) |n| allocator.destroy(n.*);
+                closed_hm.deinit();
+            }
+
+            // add first open node, which is the starting point
+            const first_open = try allocator.create(Node);
+            first_open.* = Node{ .point = self.start, .h_score = self.start.pathagorean(self.end), .g_score = 0, .parent = null };
+            try open.add(first_open);
+            try open_hm.put(self.start, first_open);
+
+            // loop through open queue and set `end` to the destination node IF it was found
+            const end: ?*Node = examine_open: while (open.removeOrNull()) |cur_node| {
+                _ = open_hm.remove(cur_node.point);
+                if (closed_hm.get(cur_node.point)) |n| allocator.destroy(n);
+                try closed_hm.put(cur_node.point, cur_node);
+
+                // loop through each neighbor of the current open node
+                neighbors: for (neighbor_directions) |direction| {
+                    const neighbor_point = cur_node.point.add(direction);
+
+                    // check if we found the end
+                    if (neighbor_point.equal(self.end)) break :examine_open cur_node;
+
+                    // check if neighbor is valid and is not a wall
+                    const neighbor = self.get_cell(neighbor_point) catch continue :neighbors;
+                    if (neighbor == .wall) continue :neighbors;
+
+                    // calculate some useful values
+                    const nei_cur_distance: f64 = if (direction.x == 0 or direction.y == 0) 1.0 else std.math.sqrt2;
+                    const g_score = cur_node.g_score + nei_cur_distance;
+                    const h_score = neighbor_point.pathagorean(self.end);
+                    const closed_node = closed_hm.get(neighbor_point);
+
+                    // check if neighbor is already in open or closed list, and if it's more efficient than our current path
+                    if (closed_node) |cn| {
+                        if (g_score >= cn.g_score) continue :neighbors;
+                    }
+                    const open_node = open_hm.get(neighbor_point);
+                    if (open_node) |on| {
+                        if (g_score < on.g_score) {
+                            on.g_score = g_score;
+                            on.parent = cur_node;
+                            try open.update(on, on);
+                        }
+                        continue :neighbors;
+                    }
+
+                    // create new node from current neighbor point and add it to open list
+                    const new_open_node = try allocator.create(Node);
+                    new_open_node.* = Node{ .point = neighbor_point, .h_score = h_score, .g_score = g_score, .parent = cur_node };
+                    try open_hm.put(neighbor_point, new_open_node);
+                    try open.add(new_open_node);
+                }
+            } else null;
+
+            // if we found the end, loop through each node's parent to get the path from end to start (note it's in reverse)
+            var path = std.ArrayList(Point).init(allocator);
+            if (end != null) try path.append(self.end);
+            var node = end;
+            while (node) |n| {
+                try path.append(n.point);
+                node = n.parent;
+            }
+            return Result{ .allocator = allocator, .path = path, .found_end = end != null };
+        }
+
         /// Print grid, optionally pass in a `Result` if path solution should also be printed.
         fn print_grid(self: *const Self, result: ?*const Result) !void {
             var set: ?std.AutoHashMap(Point, void) = null;
@@ -162,73 +247,6 @@ pub fn Astar(size: comptime_int) type {
             print("\n", .{});
             for (self.side_len * 2 + 1) |_| print("-", .{});
             print("\n", .{});
-        }
-
-        /// solves astar algorithm and returns result
-        fn solve(self: *const Self, allocator: std.mem.Allocator) !Result {
-            // create list of open nodes
-            var open = std.PriorityQueue(*Node, void, Node._lessThan).init(allocator, {});
-            defer open.deinit();
-            const first_open = try allocator.create(Node);
-            first_open.* = Node{ .point = self.start, .h_score = self.start.pathagorean(self.end), .g_score = 0, .parent = null };
-            try open.add(first_open);
-
-            var closed_hm = std.AutoHashMap(Point, *Node).init(allocator);
-            defer {
-                var iter = closed_hm.valueIterator();
-                while (iter.next()) |n| allocator.destroy(n.*);
-                closed_hm.deinit();
-            }
-            var open_hm = std.AutoHashMap(Point, *Node).init(allocator);
-            defer {
-                var iter = open_hm.valueIterator();
-                while (iter.next()) |n| allocator.destroy(n.*);
-                open_hm.deinit();
-            }
-            try open_hm.put(self.start, first_open);
-
-            const end: ?*Node = examine_open: while (open.removeOrNull()) |cur_node| {
-                _ = open_hm.remove(cur_node.point);
-                if (closed_hm.get(cur_node.point)) |n| allocator.destroy(n);
-                try closed_hm.put(cur_node.point, cur_node);
-                neighbors: for (neighbor_directions) |direction| {
-                    const neighbor_point = cur_node.point.add(direction);
-                    const neighbor = self.get_cell(neighbor_point) catch {
-                        continue :neighbors;
-                    };
-                    if (neighbor == .wall) continue :neighbors;
-                    if (neighbor_point.equal(self.end)) break :examine_open cur_node;
-
-                    const nei_cur_distance: f64 = if (direction.x == 0 or direction.y == 0) 1.0 else std.math.sqrt2;
-                    const g_score = cur_node.g_score + nei_cur_distance;
-                    const h_score = neighbor_point.pathagorean(self.end);
-                    const closed_node = closed_hm.get(neighbor_point);
-                    if (closed_node) |cn| {
-                        if (g_score >= cn.g_score) continue :neighbors;
-                    }
-                    const open_node = open_hm.get(neighbor_point);
-                    if (open_node) |on| {
-                        if (g_score < on.g_score) {
-                            on.g_score = g_score;
-                            on.parent = cur_node;
-                            try open.update(on, on);
-                        }
-                        continue :neighbors;
-                    }
-                    const new_open_node = try allocator.create(Node);
-                    new_open_node.* = Node{ .point = neighbor_point, .h_score = h_score, .g_score = g_score, .parent = cur_node };
-                    try open_hm.put(neighbor_point, new_open_node);
-                    try open.add(new_open_node);
-                }
-            } else null;
-            var path = std.ArrayList(Point).init(allocator);
-            if (end != null) try path.append(self.end);
-            var node = end;
-            while (node) |n| {
-                try path.append(n.point);
-                node = n.parent;
-            }
-            return Result{ .allocator = allocator, .path = path, .found_end = end != null };
         }
     };
 }
