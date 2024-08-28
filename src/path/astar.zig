@@ -188,6 +188,7 @@ pub fn Astar(size: comptime_int) type {
 
             const end: ?*Node = examine_open: while (open.removeOrNull()) |cur_node| {
                 _ = open_hm.remove(cur_node.point);
+                if (closed_hm.get(cur_node.point)) |n| allocator.destroy(n);
                 try closed_hm.put(cur_node.point, cur_node);
                 neighbors: for (neighbor_directions) |direction| {
                     const neighbor_point = cur_node.point.add(direction);
